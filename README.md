@@ -159,7 +159,6 @@ You can explore the customer data stored in DynamoDB using the [DynamoDB Console
 --- 
 
 By following these steps, you will have a fully functioning AWS CDK project for managing customer registrations. Make sure to regularly review your infrastructure and follow best practices for testing and deployment.
-```
 
 ### Improvements Made:
 - Added an introductory section to describe the project and its purpose.
