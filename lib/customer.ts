@@ -1,39 +1,89 @@
 import { AttributeType, Table } from "aws-cdk-lib/aws-dynamodb";
-import { Code, Function, IFunction, Runtime } from "aws-cdk-lib/aws-lambda";
+import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
-
-export interface CustomerHandlerProps {
-  /** A função Lambda que lida com a lógica de cliente **/
-  downstream: IFunction;
-}
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 
 export class CustomerHandler extends Construct {
-  /** A função Lambda que vai lidar com cadastro de clientes */
-  public readonly handler: Function;
-
-  /** Tabela DynamoDB para armazenar os dados dos clientes */
+  public readonly createCustomerLambda: Function;
+  public readonly readCustomerLambda: Function;
+  public readonly updateCustomerLambda: Function;
+  public readonly deleteCustomerLambda: Function;
   public readonly table: Table;
 
-  constructor(scope: Construct, id: string, props: CustomerHandlerProps) {
+  constructor(scope: Construct, id: string) {
     super(scope, id);
 
+    // Create DynamoDB table
     this.table = new Table(this, "CustomersTable", {
       partitionKey: { name: "customerId", type: AttributeType.STRING },
     });
 
-    this.handler = new Function(this, "CustomerHandler", {
-      runtime: Runtime.NODEJS_18_X,
-      handler: "customer.handler",
+    // Create Lambda functions
+    this.createCustomerLambda = this.createLambda(
+      "CreateCustomerLambda",
+      "index.createCustomerHandler"
+    );
+    this.readCustomerLambda = this.createLambda(
+      "ReadCustomerLambda",
+      "index.readCustomerHandler"
+    );
+    this.updateCustomerLambda = this.createLambda(
+      "UpdateCustomerLambda",
+      "index.updateCustomerHandler"
+    );
+    this.deleteCustomerLambda = this.createLambda(
+      "DeleteCustomerLambda",
+      "index.deleteCustomerHandler"
+    );
+
+    // Grant specific DynamoDB permissions to each Lambda function
+    this.grantPermissions();
+  }
+
+  // Helper function to create Lambda
+  private createLambda(id: string, handler: string): Function {
+    return new Function(this, id, {
+      runtime: Runtime.NODEJS_20_X,
+      handler,
       code: Code.fromAsset("lambda"),
       environment: {
         CUSTOMERS_TABLE_NAME: this.table.tableName,
       },
     });
+  }
 
-    // Permitir que a Lambda tenha permissões para ler e gravar dados no DynamoDB
-    this.table.grantReadWriteData(this.handler);
+  // Grant specific permissions to each Lambda function
+  private grantPermissions(): void {
+    // Create Customer Lambda permissions (dynamodb:PutItem)
+    this.createCustomerLambda.addToRolePolicy(
+      new PolicyStatement({
+        actions: ["dynamodb:PutItem"],
+        resources: [this.table.tableArn],
+      })
+    );
 
-    // Você pode adicionar mais permissões ou lógica dependendo do que precisar
-    props.downstream.grantInvoke(this.handler);
+    // Read Customer Lambda permissions (dynamodb:GetItem)
+    this.readCustomerLambda.addToRolePolicy(
+      new PolicyStatement({
+        actions: ["dynamodb:GetItem"],
+        resources: [this.table.tableArn],
+      })
+    );
+
+    // Update Customer Lambda permissions (dynamodb:UpdateItem)
+    this.updateCustomerLambda.addToRolePolicy(
+      new PolicyStatement({
+        actions: ["dynamodb:UpdateItem"],
+        resources: [this.table.tableArn],
+      })
+    );
+
+    // Delete Customer Lambda permissions (dynamodb:DeleteItem)
+    this.deleteCustomerLambda.addToRolePolicy(
+      new PolicyStatement({
+        actions: ["dynamodb:DeleteItem"],
+        resources: [this.table.tableArn],
+      })
+    );
   }
 }
